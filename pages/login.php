@@ -14,7 +14,7 @@
 <body>
 
 <div class="vh-100 d-flex justify-content-center align-items-center">
-  <form action="/scripts/login.php" method="post">
+  <form id="login-form" action="/scripts/login.php" method="post">
     <h2 class="text-center mb-4">Авторизация</h2>
 
     <div class="form-outline mb-4">
@@ -52,10 +52,13 @@
     <div class="text-center">
       <p>Нет учётной записи? <a href="/pages/register.php">Зарегистрируйтесь</a></p>
     </div>
+
+    <div id="messagebox"></div>
   </form>
 </div>
 
 <script src="/libs/bootstrap-5.2.3-dist/js/bootstrap.min.js"></script>
+<script src="/assets/js/login.js"></script>
 
 </body>
 

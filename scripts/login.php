@@ -2,6 +2,12 @@
 
 namespace Scripts;
 
+session_start();
+
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Methods: POST");
+header("Content-Type: application/json; charset=UTF-8");
+
 require_once __DIR__ . "/../config/Connection.php";
 
 use PDO;
@@ -12,7 +18,7 @@ if (isset($_REQUEST["login"])) {
   $password = trim($_REQUEST["password"]);
 
   /* ВАЛИДАЦИЯ ДАННЫХ */
-  $errors[] = [];
+  $errors = [];
 
   if (empty($username)) {
     $errors[] = "Пожалуйста, заполните поле \"Логин\"!";
@@ -35,12 +41,11 @@ if (isset($_REQUEST["login"])) {
 
   /* ПРОВЕДЕНИЕ АВТОРИЗАЦИИ */
   $conn = (new Connection())->getConnection();
-  $query = "SELECT `password` FROM `User` WHERE `username` = :username";
+  $query = "SELECT * FROM `User` WHERE `username` = ?";
 
   $stmt = $conn->prepare($query);
-  $stmt->bindParam(":username", $username);
 
-  if (!$stmt->execute()) {
+  if (!$stmt->execute([$username])) {
     http_response_code(500);
 
     echo json_encode([
@@ -50,12 +55,25 @@ if (isset($_REQUEST["login"])) {
     die();
   }
 
-  $result = $stmt->fetchAll(PDO::FETCH_ASSOC)[0];
+  $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+  if (empty($result)) {
+    http_response_code(400);
+
+    echo json_encode([
+      "errors" => ["Нет такого логина!"],
+    ], JSON_UNESCAPED_UNICODE);
+
+    die();
+  }
+
+  $result = $result[0];
+
   if (!password_verify($password, $result["password"])) {
     http_response_code(400);
 
     echo json_encode([
-      "errors" => ["Неверный логин или пароль!"],
+      "errors" => ["Неверный пароль!"],
     ], JSON_UNESCAPED_UNICODE);
 
     die();
@@ -66,4 +84,10 @@ if (isset($_REQUEST["login"])) {
   echo json_encode([
     "message" => "Вы успешно авторизовались!",
   ], JSON_UNESCAPED_UNICODE);
+
+  // сохраняем данные пользователя для сессии
+  $_SESSION["user_id"] = $result["user_id"];
+  $_SESSION["username"] = $result["username"];
+  $_SESSION["email"] = $result["email"];
+  $_SESSION["role_id"] = $result["role_id"];
 }

@@ -3,39 +3,35 @@
 namespace Api\Controllers;
 
 require_once __DIR__ . "/Controller.php";
-require_once __DIR__ . "/../../config/Database.php";
+require_once __DIR__ . "/../../config/Connection.php";
+require_once __DIR__ . "/../../config/DBConnection.php";
+require_once __DIR__ . "/../models/Database.php";
+require_once __DIR__ . "/../models/User.php";
+require_once __DIR__ . "/../dao/DatabaseDAO.php";
 
-require_once __DIR__ . "/../models/Order.php";
-require_once __DIR__ . "/../models/Client.php";
-require_once __DIR__ . "/../models/Console.php";
-require_once __DIR__ . "/../models/Gamepad.php";
-require_once __DIR__ . "/../models/OrderConsole.php";
-require_once __DIR__ . "/../models/OrderGamepad.php";
-
-require_once __DIR__ . "/../dao/OrderDAO.php";
-
-use Config\Database;
-use Api\Models\Order;
+use Config\Connection;
+use Config\DBConnection;
+use Api\Models\Database;
 use Api\Models\User;
-use Api\Models\Console;
-use Api\Models\Gamepad;
-use Api\Models\OrderConsole;
-use Api\Models\OrderGamepad;
-use Api\Dao\OrderDAO;
+use Api\Dao\DatabaseDAO;
 
-class OrderController extends Controller {
-  private OrderDAO $orderDAO;
+class DatabaseController extends Controller {
+  private DatabaseDAO $databaseDAO;
 
   /**
-   * Создаёт контроллер для работы с конечными точками /api/orders
+   * Создаёт контроллер для работы с конечными точками /api/databases
    */
   public function __construct() {
-    $this->orderDAO = new OrderDAO((new Database())->getConnection());
+    $this->databaseDAO = new DatabaseDAO(
+      (new Connection())->getConnection(),
+      (new DBConnection())->getConnection()
+    );
   }
 
   /**
-   * GET /api/orders/list: возвращает список заказов
-   * GET /api/orders/list?id=N: возвращает заказ с id = N
+   * GET /api/databases/list: возвращает список баз данных
+   * GET /api/databases/list?id=N: возвращает базу данных с указанным ID
+   * GET /api/databases/list?user_id=N: возвращает базы данных, принадлежащие пользователю с id=N
    * @return void
    */
   public function listAction(): void {
@@ -53,43 +49,71 @@ class OrderController extends Controller {
       return;
     }
 
-    // нужен только один заказ
+    // нужна только одна база данных
     if (!empty($params["id"])) {
-      $order = $this->orderDAO->readOne($params["id"]);
+      $database = $this->databaseDAO->readOne($params["id"]);
 
-      // заказ с заданным id не найден
-      if ($order === null) {
+      // пользователь с заданным id не найден
+      if ($database === null) {
         $this->sendOutput(
           json_encode([
-            "error" => "Заказ с id {$params['id']} не был найден!",
+            "error" => "База данных с id {$params['id']} не была найдена!",
           ], JSON_UNESCAPED_UNICODE),
           ["Content-Type: application/json", "HTTP/1.1 400 Bad Request"]
         );
         return;
       }
 
-      // заказ с заданным id найден
+      // база данных с заданным id найдена
       $this->sendOutput(
-        json_encode($order->toArray(), JSON_UNESCAPED_UNICODE),
+        json_encode($database->toArray(), JSON_UNESCAPED_UNICODE),
+        ["Content-Type: application/json", "HTTP/1.1 200 OK"]
+      );
+      return;
+    }
+
+    // нужны базы данных, принадлежащие конкретному пользователю
+    if (!empty($params["user_id"])) {
+      $databases = $this->databaseDAO->getUserDatabases($params["user_id"]);
+
+      // базы данных пользователя не были найдены
+      if (empty($databases)) {
+        $this->sendOutput(
+          json_encode([
+            "error" => "Базы данных пользователя с id = {$params['user_id']} не были найдены!",
+          ], JSON_UNESCAPED_UNICODE),
+          ["Content-Type: application/json", "HTTP/1.1 400 Bad Request"]
+        );
+        return;
+      }
+
+      // конвертируем все объекты в ассоциативные массивы
+      $databases = array_map(function (Database $database) {
+        return $database->toArray();
+      }, $databases);
+
+      // база данных с заданным id найдена
+      $this->sendOutput(
+        json_encode($databases, JSON_UNESCAPED_UNICODE),
         ["Content-Type: application/json", "HTTP/1.1 200 OK"]
       );
       return;
     }
 
     // конвертируем все объекты в ассоциативные массивы
-    $orders = array_map(function (Order $order) {
-      return $order->toArray();
-    }, $this->orderDAO->readAll());
+    $databases = array_map(function (Database $database) {
+      return $database->toArray();
+    }, $this->databaseDAO->readAll());
 
     // конвертируем массивы в JSON-строки и отправляем ответ
     $this->sendOutput(
-      json_encode($orders, JSON_UNESCAPED_UNICODE),
+      json_encode($databases, JSON_UNESCAPED_UNICODE),
       ["Content-Type: application/json", "HTTP/1.1 200 OK"]
     );
   }
 
   /**
-   * POST /api/orders/create: создаёт заказ и сохраняет его в БД
+   * POST /api/databases/create: создаёт базу данных и добавляет её в БД
    * @return void
    */
   public function createAction(): void {
@@ -114,10 +138,8 @@ class OrderController extends Controller {
 
     // проверяем полноценность данных
     if (
-      empty($data["client"]["client_id"])
-      || empty($data["ordersconsole"])
-      || empty($data["ordersgamepad"])
-      || empty($data["price"])
+      empty($data["name"])
+      || empty($data["user_id"])
     ) {
       $this->sendOutput(
         json_encode([
@@ -129,47 +151,27 @@ class OrderController extends Controller {
     }
 
     // все данные для создания записи присутствуют
-    $client = new User();
-    $client->setClientId($data["client"]["client_id"]);
+    $database = new Database();
+    $user = new User();
 
-    $ordersConsole = [];
-    foreach ($data["ordersconsole"] as $arOrderConsole) {
-      $console = new Console();
-      $console->setConsoleId(intval($arOrderConsole["console"]["console_id"]));
+    $database->setName($data["name"]);
+    $user->setUserId($data["user_id"]);
+    $database->setUser($user);
 
-      $orderConsole = new OrderConsole($console, intval($arOrderConsole["amount"]));
-      $ordersConsole[] = $orderConsole;
-    }
+    $created = $this->databaseDAO->create($database);
 
-    $ordersGamepad = [];
-    foreach ($data["ordersgamepad"] as $arOrderGamepad) {
-      $gamepad = new Gamepad();
-      $gamepad->setGamepadId(intval($arOrderGamepad["gamepad"]["gamepad_id"]));
-
-      $orderGamepad = new OrderGamepad($gamepad, intval($arOrderGamepad["amount"]));
-      $ordersGamepad[] = $orderGamepad;
-    }
-
-    $order = new Order();
-    $order->setClient($client);
-    $order->setOrdersConsole($ordersConsole);
-    $order->setOrdersGamepad($ordersGamepad);
-    $order->setPrice(floatval($data["price"]));
-
-    $created = $this->orderDAO->create($order);
-
-    // произошла ошибка при добавлении заказа
+    // произошла ошибка при добавлении базы данных
     if ($created === null) {
       $this->sendOutput(
         json_encode([
-          "error" => "Ошибка добавления заказа!"
+          "error" => "Ошибка добавления базы данных!"
         ], JSON_UNESCAPED_UNICODE),
         ["Content-Type: application/json", "HTTP/1.1 500 Internal Server Error"]
       );
       return;
     }
 
-    // добавление заказа прошло успешно
+    // добавление базы данных прошло успешно
     $this->sendOutput(
       json_encode($created->toArray(), JSON_UNESCAPED_UNICODE),
       ["Content-Type: application/json", "HTTP/1.1 201 Created"]
@@ -177,7 +179,7 @@ class OrderController extends Controller {
   }
 
   /**
-   * DELETE /api/orders/delete: удаляет заказ из БД
+   * DELETE /api/databases/delete: удаляет базу данных из БД
    * @return void
    */
   public function deleteAction(): void {
@@ -196,22 +198,22 @@ class OrderController extends Controller {
 
     $params = $this->getQueryStringParams();
 
-    // id заказа обязательно должен быть задан
+    // id базы данных обязательно должен быть задан
     if (empty($params["id"])) {
       $this->sendOutput(
         json_encode([
-          "error" => "Невозможно удалить заказ! Не задан id заказа!"
+          "error" => "Невозможно удалить базу данных! Не задан id базы данных!"
         ], JSON_UNESCAPED_UNICODE),
         ["Content-Type: application/json", "HTTP/1.1 400 Bad Request"]
       );
       return;
     }
 
-    // ошибка при удалении заказа
-    if (!$this->orderDAO->delete($params["id"])) {
+    // ошибка при удалении базы данных
+    if (!$this->databaseDAO->delete($params["id"])) {
       $this->sendOutput(
         json_encode([
-          "error" => "Произошла ошибка при удалении заказа!"
+          "error" => "Произошла ошибка при удалении базы данных!"
         ], JSON_UNESCAPED_UNICODE),
         ["Content-Type: application/json", "HTTP/1.1 500 Internal Server Error"]
       );
@@ -221,7 +223,7 @@ class OrderController extends Controller {
     // успешное удаление
     $this->sendOutput(
       json_encode([
-        "message" => "Удаление заказа прошло успешно!"
+        "message" => "Удаление базы данных прошло успешно!"
       ], JSON_UNESCAPED_UNICODE),
       ["Content-Type: application/json", "HTTP/1.1 200 OK"]
     );

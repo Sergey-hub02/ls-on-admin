@@ -114,13 +114,14 @@ class User {
       "user_id" => $this->getUserId(),
       "username" => $this->getUsername(),
       "email" => $this->getEmail(),
-      "role" => $this->getRole()->toArray(),
     ];
 
-    if (empty($this->password))
+    if (empty($this->password) || empty($this->role))
       return $fields;
 
     $fields["password"] = $this->getPassword();
+    $fields["role"] = $this->getRole()->toArray();
+
     return $fields;
   }
 }

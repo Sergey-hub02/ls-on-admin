@@ -14,7 +14,7 @@
 <body>
 
 <div class="vh-100 d-flex justify-content-center align-items-center">
-  <form action="/" method="post">
+  <form id="register-form" action="/" method="post">
     <h2 class="text-center mb-4">Регистрация</h2>
 
     <div class="form-outline mb-4">
@@ -53,9 +53,11 @@
       >
     </div>
 
+    <input type="hidden" name="role_id" value="1">
+
     <button
       type="submit"
-      name="login"
+      name="register"
       class="btn btn-secondary btn-block mb-4 w-100"
     >
       Зарегистрироваться
@@ -64,10 +66,13 @@
     <div class="text-center">
       <p>Уже есть учётная запись? <a href="/pages/login.php">Авторизуйтесь</a></p>
     </div>
+
+    <div id="messagebox"></div>
   </form>
 </div>
 
 <script src="/libs/bootstrap-5.2.3-dist/js/bootstrap.min.js"></script>
+<script src="/assets/js/register.js"></script>
 
 </body>
 

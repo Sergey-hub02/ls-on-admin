@@ -5,8 +5,10 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Origin, Content-Type, X-Auth-Token');
 
 require_once __DIR__ . "/controllers/UserController.php";
+require_once __DIR__ . "/controllers/DatabaseController.php";
 
 use Api\Controllers\UserController;
+use Api\Controllers\DatabaseController;
 
 $uri = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
 $uri = explode("/", $uri);
@@ -14,6 +16,7 @@ $uri = explode("/", $uri);
 // доступные группы конечных точек
 $sections = [
   "users",
+  "databases",
 ];
 
 $section = $uri[3];
@@ -28,6 +31,10 @@ $controller = null;
 switch ($section) {
   case "users":
     $controller = new UserController();
+    break;
+
+  case "databases":
+    $controller = new DatabaseController();
     break;
 
   default:
