@@ -1,0 +1,6 @@
+{
+    "require": {
+        "greenlion/php-sql-parser": "^4.5",
+      "ext-pdo": "*"
+    }
+}

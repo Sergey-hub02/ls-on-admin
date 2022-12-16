@@ -6,9 +6,13 @@ header('Access-Control-Allow-Headers: Origin, Content-Type, X-Auth-Token');
 
 require_once __DIR__ . "/controllers/UserController.php";
 require_once __DIR__ . "/controllers/DatabaseController.php";
+require_once __DIR__ . "/controllers/TableController.php";
+require_once __DIR__ . "/controllers/QueryController.php";
 
 use Api\Controllers\UserController;
 use Api\Controllers\DatabaseController;
+use Api\Controllers\TableController;
+use Api\Controllers\QueryController;
 
 $uri = parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH);
 $uri = explode("/", $uri);
@@ -17,6 +21,8 @@ $uri = explode("/", $uri);
 $sections = [
   "users",
   "databases",
+  "tables",
+  "query",
 ];
 
 $section = $uri[3];
@@ -35,6 +41,14 @@ switch ($section) {
 
   case "databases":
     $controller = new DatabaseController();
+    break;
+
+  case "tables":
+    $controller = new TableController();
+    break;
+
+  case "query":
+    $controller = new QueryController();
     break;
 
   default:
